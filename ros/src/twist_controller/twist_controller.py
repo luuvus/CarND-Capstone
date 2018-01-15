@@ -22,7 +22,8 @@ class Controller(object):
 
         # vehicle mass and radius
         self.vehicle_mass = kwargs['vehicle_mass'] 
-        self.wheel_radius = kwargs['wheel_radius']        
+        self.wheel_radius = kwargs['wheel_radius']
+        self.steer_ratio = kwargs['steer_ratio']
 
     def control(self, linspd_current, linspd_tar, rotspd_tar, dt):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -41,5 +42,8 @@ class Controller(object):
             
         # compute the steering angle
         steer_angle = self.lateral.get_steering(linspd_tar, rotspd_tar, linspd_current)
+        # output steering wheel angle
+        steer_angle = steer_angle*self.steer_ratio
+        
 
         return throttle, brake, steer_angle
