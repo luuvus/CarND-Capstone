@@ -19,7 +19,10 @@ class Controller(object):
                                      max_steer_angle=kwargs['max_steer_angle'])
 		# low-pass filter not used not
         self.LPF = LowPassFilter(tau=1, ts=1)
-        
+
+        # vehicle mass and radius
+        self.vehicle_mass = kwargs['vehicle_mass'] 
+        self.wheel_radius = kwargs['wheel_radius']        
 
     def control(self, linspd_current, linspd_tar, rotspd_tar, dt):
         # TODO: Change the arg, kwarg list to suit your needs
@@ -33,7 +36,9 @@ class Controller(object):
             brake = 0
         else:
             throttle = 0
-            brake = longitudinal_control
+            brake = longitudinal_control            
+            brake = -longitudinal_control*self.vehicle_mass*self.wheel_radius
+            
         # compute the steering angle
         steer_angle = self.lateral.get_steering(linspd_tar, rotspd_tar, linspd_current)
 
