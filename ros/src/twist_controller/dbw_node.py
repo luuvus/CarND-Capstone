@@ -116,8 +116,8 @@ class DBWNode(object):
             # if <dbw is enabled>:
             # calculate the control inputs
             throttle, brake, steering = self.controller.control(linspd_current = self.linspd_current,
-                                                                linspd_tar =self.dbg_ref_vel,
-                                                                rotspd_tar = -0.2,dt = dt)
+                                                                linspd_tar =self.linearvel_tar,
+                                                                rotspd_tar = self.angularvel_tar,dt = dt)
 			# if the autonomous mode is active publish the commands
             if self.dbw_enabled:
                 self.publish(throttle, brake, steering)

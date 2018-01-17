@@ -43,7 +43,7 @@ class Controller(object):
         # compute the steering angle
         steer_angle = self.lateral.get_steering(linspd_tar, rotspd_tar, linspd_current)
         # output steering wheel angle
-        steer_angle = steer_angle*self.steer_ratio
+        steer_angle = steer_angle
         
 
         return throttle, brake, steer_angle
