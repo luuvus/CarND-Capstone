@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped
 import math
-
 from twist_controller import Controller
 
 '''
@@ -45,23 +44,67 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-
+        # steering control publisher
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
+        # throttle control publisher
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',
                                             ThrottleCmd, queue_size=1)
+        # brake control publisher
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
-
+    	# 2 DoF controller for controlling the angular and linear velocities
+        self.controller = Controller(vehicle_mass = vehicle_mass,
+                                          fuel_capacity = fuel_capacity,
+                                          brake_deadband = brake_deadband,
+                                          decel_limit = decel_limit,
+                                          accel_limit = accel_limit,
+                                          wheel_radius = wheel_radius,
+                                          wheel_base = wheel_base,
+                                          steer_ratio = steer_ratio,
+                                          max_lat_accel = max_lat_accel,
+                                          max_steer_angle = max_steer_angle,
+                                          )
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
+        # some varibales for linear and angular velocities and their desired values
+        self.linspd_current = 0
+        self.linearvel_tar = 0
+        self.angularvel_tar = 0
+        self.dbw_enabled = False
+        self.dbg_ref_vel = 10
 
         # TODO: Subscribe to all the topics you need to
+        # current spd
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb) 
+        # target linear and angular spd 
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb) 
+        # control mode
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb) 
+        #debugging topic for target velocities
+        rospy.Subscriber('debugging_ref_vel', Float64, self.dbg_ref_vel_cb)
 
         self.loop()
+    # read the current velocity
+    def velocity_cb(self, msg):
+        self.linspd_current = msg.twist.linear.x
+    # read the reference linear and angular velocities
+    def twist_cmd_cb(self, msg):
+        self.linearvel_tar = msg.twist.linear.x
+        self.angularvel_tar = msg.twist.angular.z
+    # read the current control mode (auto or manual)
+    def dbw_enabled_cb(self, msg):
+        self.dbw_enabled = msg.data
+    # read a reference debugging velocity
+    def dbg_ref_vel_cb(self, msg):
+        self.dbg_ref_vel = msg.data
 
     def loop(self):
-        rate = rospy.Rate(50) # 50Hz
+        # loop control frequency
+        loop_freq = 50
+        # sample time of the control loop
+        dt = 1/float(loop_freq)
+        rate = rospy.Rate(loop_freq) 
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
@@ -71,7 +114,16 @@ class DBWNode(object):
             #                                                     <dbw status>,
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
-            #   self.publish(throttle, brake, steer)
+            # calculate the control inputs
+            throttle, brake, steering = self.controller.control(linspd_current = self.linspd_current,
+                                                                linspd_tar =self.linearvel_tar,
+                                                                rotspd_tar = self.angularvel_tar,dt = dt)
+			# if the autonomous mode is active publish the commands
+            if self.dbw_enabled:
+                self.publish(throttle, brake, steering)
+			# if not reset the integral control in the controller
+            else:
+                self.controller.longitudinal.reset()    
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
