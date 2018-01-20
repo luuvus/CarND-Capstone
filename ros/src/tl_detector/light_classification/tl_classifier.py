@@ -5,6 +5,8 @@ from label_image import load_labels
 import rospy
 import os
 import numpy as np
+import time
+import cv2
 
 class TLClassifier(object):
     def __init__(self):
@@ -42,15 +44,27 @@ class TLClassifier(object):
         input_operation = self.graph.get_operation_by_name(input_name)
         output_operation = self.graph.get_operation_by_name(output_name)
 
-        t = read_tensor_from_image(image, 224, 224, 128, 128)
+        #start = time.time()
+        #t = read_tensor_from_image(image, 224, 224, 128, 128)
+        image2 = cv2.resize(image,dsize=(224,224), interpolation=cv2.INTER_CUBIC)
+        np_image_data = np.asarray(image2,dtype=np.float32)
+        np_image_data = np.divide(np.subtract(np_image_data,128),128)
+        image_data = np.expand_dims(np_image_data,axis=0)
+        #end = time.time();
+        #print("Time1: {:.3f}s".format(end-start))
 
+        #start = time.time()
         with tf.Session(graph=self.graph) as sess:
-            results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: t})
+            results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: image_data})
+
+        #end = time.time();
+        #print("Time2: {:.3f}s".format(end-start))
+
 
         results = np.squeeze(results)
         
         prediction = np.argmax(results)
-        #rospy.loginfo("Result:(%s), prediction: %s",results, self.labels[prediction])
+        #rospy.loginfo("prediction: %s",self.labels[prediction])
         #os.system('python -m light_classification/label_image --graph=light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb --image=test.png')
         
         if self.labels[prediction] == "green":
