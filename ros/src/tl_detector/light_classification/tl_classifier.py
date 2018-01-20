@@ -1,6 +1,7 @@
 from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 from label_image import read_tensor_from_image
+from label_image import load_labels
 import rospy
 import os
 import numpy as np
@@ -8,10 +9,12 @@ import numpy as np
 class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
-        rospy.loginfo('cwd:%s',os.getcwd())
-        self.model_file = "light_classification/retrained_graph.pb"
+        #rospy.loginfo('cwd:%s',os.getcwd())
+        self.model_file = "light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb"
         self.graph = tf.Graph()
         self.graph_def = tf.GraphDef()
+        self.labels = load_labels("light_classification/retrained_labels.txt")
+
 
         with open(self.model_file, "rb") as f:
             self.graph_def.ParseFromString(f.read())
@@ -42,19 +45,19 @@ class TLClassifier(object):
         t = read_tensor_from_image(image, 224, 224, 128, 128)
 
         with tf.Session(graph=self.graph) as sess:
-            #start = time.time()
             results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: t})
-            #end = time.time()
 
         results = np.squeeze(results)
         
         prediction = np.argmax(results)
-        rospy.loginfo("Result:(%s), prediction(%s)",results, prediction)
-        if prediction == 0:
+        #rospy.loginfo("Result:(%s), prediction: %s",results, self.labels[prediction])
+        #os.system('python -m light_classification/label_image --graph=light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb --image=test.png')
+        
+        if self.labels[prediction] == "green":
             return TrafficLight.GREEN
-        elif prediction == 1:
+        elif self.labels[prediction] == "red":
             return TrafficLight.RED
-        elif prediction == 2:
+        elif self.labels[prediction] == "yellow":
             return TrafficLight.YELLOW
         else:
             return TrafficLight.UNKNOWN
