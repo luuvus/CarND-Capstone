@@ -13,7 +13,7 @@ import yaml
 import math
 
 STATE_COUNT_THRESHOLD = 3
-IMAGE_COUNTER = 0
+IMAGE_COUNTER = -1
 
 class TLDetector(object):
     def __init__(self):
@@ -83,6 +83,7 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+        
         self.has_image = True
         self.camera_image = msg
         self.update_lights = False
@@ -196,11 +197,11 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
         #Get classification
         #cv2.imwrite("test.png",cv_image)
-        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        #cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         ret_state =  self.light_classifier.get_classification(cv_image)
         return ret_state
 
