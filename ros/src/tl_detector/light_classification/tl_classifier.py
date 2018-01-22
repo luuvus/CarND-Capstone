@@ -12,7 +12,7 @@ class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
         #rospy.loginfo('cwd:%s',os.getcwd())
-        self.model_file = "light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb"
+        self.model_file = "light_classification/retrained_mobilenet_1.0_224_005_8k_dp075.pb"
         self.graph = tf.Graph()
         self.graph_def = tf.GraphDef()
         self.labels = load_labels("light_classification/retrained_labels.txt")
@@ -43,21 +43,23 @@ class TLClassifier(object):
         output_layer = "final_result"
         input_name = "import/" + input_layer
         output_name = "import/" + output_layer
+        keep_prob_name = "import/final_training_ops/dropout/Placeholder"
         input_operation = self.graph.get_operation_by_name(input_name)
         output_operation = self.graph.get_operation_by_name(output_name)
+        keep_prob_operation = self.graph.get_operation_by_name(keep_prob_name)
 
         #start = time.time()
-        #t = read_tensor_from_image(image, 224, 224, 128, 128)
-        image2 = cv2.resize(image,dsize=(224,224), interpolation=cv2.INTER_CUBIC)
-        np_image_data = np.asarray(image2,dtype=np.float32)
-        np_image_data = np.divide(np.subtract(np_image_data,128),128)
-        image_data = np.expand_dims(np_image_data,axis=0)
+        t = read_tensor_from_image(image, 224, 224, 128, 128)
+        #image2 = cv2.resize(image,dsize=(224,224), interpolation=cv2.INTER_CUBIC)
+        #np_image_data = np.asarray(image2,dtype=np.float32)
+        #np_image_data = np.divide(np.subtract(np_image_data,128),128)
+        #image_data = np.expand_dims(np_image_data,axis=0)
         #end = time.time();
         #print("Time1: {:.3f}s".format(end-start))
 
         #start = time.time()
         with tf.Session(graph=self.graph) as sess:
-            results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: image_data})
+            results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: t, keep_prob_operation.outputs[0]: 1.0})
 
         #end = time.time();
         #print("Time2: {:.3f}s".format(end-start))
@@ -66,8 +68,8 @@ class TLClassifier(object):
         results = np.squeeze(results)
         
         prediction = np.argmax(results)
-        #rospy.loginfo("prediction: %s",self.labels[prediction])
-        #os.system('python -m light_classification/label_image --graph=light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb --image=test.png')
+        #rospy.loginfo("results: %sprediction: %s",results, self.labels[prediction])
+        #os.system('python -m light_classification/label_image --graph=light_classification/retrained_mobilenet_1.0_224_005_8k_prep_jpg_more.pb --image=test.png')
         
         if self.labels[prediction] == "green":
             rospy.loginfo('Traffic Light: GREEN')

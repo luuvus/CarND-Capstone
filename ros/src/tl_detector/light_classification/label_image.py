@@ -69,6 +69,7 @@ def read_tensor_from_image(cv_image, input_height=299, input_width=299,
   normalized = tf.divide(tf.subtract(resized, [input_mean]), [input_std])
   sess = tf.Session()
   result = sess.run(normalized)
+  sess.close()
 
   return result
 
