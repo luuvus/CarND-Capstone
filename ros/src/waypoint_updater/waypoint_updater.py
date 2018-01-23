@@ -24,6 +24,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+TRAFFIC_LIGHT_STOP_WPS = 2 # Number of waypoints from traffic light to stop point
 
 
 class WaypointUpdater(object):
@@ -58,7 +59,10 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(10) #Hz
+
+        #set refresh rate 50Hz for Carla/real vehicle, 
+        #set a very low refresh rate to reduce lagging when running in simulator
+        rate = rospy.Rate(5) 
 
         while not rospy.is_shutdown():
             if self.base_waypoints != None and self.current_pose !=None:
@@ -79,13 +83,46 @@ class WaypointUpdater(object):
         if max_index > self.base_waypoints_count - 1:
             max_index = self.base_waypoints_count - 1
 
-        for i in range(next_wp_idx, max_index):
+        decelaration_rate = 0
+        dist_to_tf = -1
 
-            target_velocity = self.speed_limit
+        if self.tf_index >= 0:
+            dist_to_tf = self.distance(self.base_waypoints,next_wp_idx,self.tf_index)
+            
+            if dist_to_tf > 0:
+                decelaration_rate = (self.current_velocity ** 2)/(dist_to_tf * 2)
 
-            self.set_waypoint_velocity(self.base_waypoints,i,target_velocity)
+            if decelaration_rate > -5:
+                decelaration_rate = -5
 
-            msg.waypoints.append(self.base_waypoints[i])
+        for wp_idx in range(next_wp_idx, max_index):
+
+            target_velocity = self.mph_to_mps(self.speed_limit)
+
+            # reduce velocity for stop light
+            if self.tf_index >= 0:
+
+                if wp_idx <= self.tf_index - TRAFFIC_LIGHT_STOP_WPS:
+
+                    if wp_idx == self.tf_index - TRAFFIC_LIGHT_STOP_WPS:
+                        target_velocity = 0
+                    else:
+                        wp_to_wp_dist = self.distance(self.base_waypoints, wp_idx, wp_idx + 1)
+                        wp_to_wp_vel = (self.current_velocity ** 2) - (wp_to_wp_dist * 2 * decelaration_rate)
+
+                        if wp_to_wp_vel < 0.1:
+                            wp_to_wp_vel = 0.0
+                        
+                        target_velocity = math.sqrt(wp_to_wp_vel)
+                        target_velocity = self.mph_to_mps(target_velocity)
+
+                else: 
+                    # velocity is not needed for waypoints after traffic light waypoint
+                    target_velocity = 0
+
+            self.set_waypoint_velocity(self.base_waypoints,wp_idx,target_velocity)
+
+            msg.waypoints.append(self.base_waypoints[wp_idx])
 
 
         self.final_waypoints_pub.publish(msg)
@@ -154,6 +191,7 @@ class WaypointUpdater(object):
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
         self.tf_index = msg.data
+        rospy.logwarn("traffic_cb | tf_index = %s", self.tf_index)
         #pass
 
     def obstacle_cb(self, msg):
@@ -179,6 +217,10 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
+
+    def mph_to_mps(self, miles_per_hour):
+        meter_per_second = 0.44704
+        return miles_per_hour * meter_per_second
 
 
 if __name__ == '__main__':
