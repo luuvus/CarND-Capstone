@@ -1,4 +1,2 @@
-none
-green
-yellow
 red
+notred

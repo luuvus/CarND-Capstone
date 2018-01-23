@@ -43,13 +43,10 @@ class TLClassifier(object):
             # Sort to show labels of first prediction in order of confidence
             top_k = predictions[0].argsort()[-len(predictions[0]):][::-1]
         
+            # check if the light is red
             light_state = label_lines[top_k[0]]
-            if light_state == "green":
-                return TrafficLight.GREEN
-            elif light_state == "yellow":
-                return TrafficLight.YELLOW
-            elif light_state == "red":
+            if light_state == "red":
                 return TrafficLight.RED
     
-        # if no light is found (light_state == "none")
+        # if the light is not red
         return -1
