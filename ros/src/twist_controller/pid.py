@@ -17,7 +17,7 @@ class PID(object):
         self.int_val = 0.0
         self.last_int_val = 0.0
 
-    def step(self, error, sample_time):
+    def step_v1(self, error, sample_time):
         self.last_int_val = self.int_val
 
         integral = self.int_val + error * sample_time;
@@ -35,3 +35,27 @@ class PID(object):
         self.last_error = error
 
         return val
+
+    def step(self, error, sample_time):
+        integral = self.int_val + error * sample_time
+
+        if sample_time > 1.0e-3:
+            derivative = (error - self.last_error) / sample_time
+        else:
+            derivative = 0.0
+
+        val = self.kp * error + self.ki * self.int_val + self.kd * derivative
+
+        # Take into account actuator limits
+        if val > self.max:
+            val = self.max
+        elif val < self.min:
+            val = self.min
+        else:
+            # Accumulate integral error only if we didn't reach actuator limits
+            self.int_val = integral
+
+        self.last_error = error
+
+        return val
+

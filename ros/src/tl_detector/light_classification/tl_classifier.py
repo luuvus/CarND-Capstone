@@ -37,6 +37,8 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
+        #return TrafficLight.UNKNOWN
+
         input_layer = "input"
         output_layer = "final_result"
         input_name = "import/" + input_layer
@@ -68,10 +70,14 @@ class TLClassifier(object):
         #os.system('python -m light_classification/label_image --graph=light_classification/retrained_mobilenet_1.0_224_005_no_img_mod.pb --image=test.png')
         
         if self.labels[prediction] == "green":
+            rospy.loginfo('Traffic Light: GREEN')
             return TrafficLight.GREEN
         elif self.labels[prediction] == "red":
+            rospy.loginfo('Traffic Light: RED')
             return TrafficLight.RED
         elif self.labels[prediction] == "yellow":
+            rospy.loginfo('Traffic Light: YELLOW')
             return TrafficLight.YELLOW
         else:
+            rospy.loginfo('Traffic Light: UNKNOWN')
             return TrafficLight.UNKNOWN

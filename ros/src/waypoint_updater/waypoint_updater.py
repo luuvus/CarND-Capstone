@@ -7,6 +7,7 @@ from std_msgs.msg import Int32
 
 import math
 import tf
+import copy
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -24,33 +25,33 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
-TRAFFIC_LIGHT_STOP_WPS = 2 # Number of waypoints from traffic light to stop point
+TRAFFIC_LIGHT_STOP_WPS = 5 # Number of waypoints from traffic light to stop point
 
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-        rospy.Subscriber('/traffic_waypoint',Int32,self.traffic_cb)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
+        rospy.Subscriber('/traffic_waypoint',Int32,self.traffic_cb, queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size=1)
        
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
 
-        self.speed_limit = rospy.get_param('/waypoint_loader/velocity', 40)
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity', 25)
 
         self.base_waypoints = None
         self.base_waypoints_count = 0
         self.current_pose = None
         self.current_velocity = None
 
-        self.tf_index = -1 # index of closet traffic light waypoint
+        self.tf_index = -1 # index of traffic light waypoint
 
         self.car_x = None
         self.car_y = None
@@ -61,7 +62,7 @@ class WaypointUpdater(object):
     def loop(self):
 
         #set refresh rate 50Hz for Carla/real vehicle, 
-        #set a very low refresh rate to reduce lagging when running in simulator
+        #set a low refresh rate to reduce lagging when running in simulator
         rate = rospy.Rate(5) 
 
         while not rospy.is_shutdown():
@@ -69,6 +70,7 @@ class WaypointUpdater(object):
                 self.publish_final_waypoints()
 
             rate.sleep()
+
 
     def publish_final_waypoints(self):
         msg = Lane()
@@ -78,55 +80,73 @@ class WaypointUpdater(object):
 
         next_wp_idx = self.next_waypoint_index()
 
-        max_index = next_wp_idx + LOOKAHEAD_WPS
+        end_wp_idx = next_wp_idx + LOOKAHEAD_WPS
 
-        if max_index > self.base_waypoints_count - 1:
-            max_index = self.base_waypoints_count - 1
+        if end_wp_idx > self.base_waypoints_count - 1:
+            end_wp_idx = self.base_waypoints_count - 1
 
-        decelaration_rate = 0
-        dist_to_tf = -1
+        decel_rate = 0 
+        dist_to_tf = -1 # distance between waypoint in front of car and the stop light waypoint
+        tf_final_stop_index = -1 # index of the waypoint that the car should come to a complete stop
+        min_dist_gap_to_decel = 45 # min points/spaces gap to decelerate
+        
+        # adjust parameters for stop light situation
+        if self.tf_index >= 0:   
 
-        if self.tf_index >= 0:
-            dist_to_tf = self.distance(self.base_waypoints,next_wp_idx,self.tf_index)
+            #dist_to_tf = self.distance(self.base_waypoints,next_wp_idx,self.tf_index)
+            dist_to_tf = self.dist_to_tl(self.tf_index, next_wp_idx)
             
             if dist_to_tf > 0:
-                decelaration_rate = (self.current_velocity ** 2)/(dist_to_tf * 2)
+                decel_rate = (self.mph_to_mps(self.current_velocity) ** 2)/(dist_to_tf * 2)
 
-            if decelaration_rate > -5:
-                decelaration_rate = -5
+            tf_final_stop_index = self.tf_index - TRAFFIC_LIGHT_STOP_WPS
 
-        for wp_idx in range(next_wp_idx, max_index):
-
+        # process waypoints between waypoint in front of car and the final ending waypoint in the trajectory
+        for wp_idx in range(next_wp_idx, end_wp_idx):
+            
+            # set to velocity to default speed limit
             target_velocity = self.mph_to_mps(self.speed_limit)
-
-            # reduce velocity for stop light
+            
+            # adjust velocity for stop light
             if self.tf_index >= 0:
 
-                if wp_idx <= self.tf_index - TRAFFIC_LIGHT_STOP_WPS:
+                if wp_idx >  tf_final_stop_index: # velocity is not needed for waypoints after traffic light waypoint stop point
+                    target_velocity = 0
 
-                    if wp_idx == self.tf_index - TRAFFIC_LIGHT_STOP_WPS:
+                elif tf_final_stop_index - wp_idx <= min_dist_gap_to_decel: # adjust velocity if the gap between this wp_idx and traffic light is within min points/spaces
+
+                    if wp_idx == tf_final_stop_index: # set vel to zero if this wp_idx is the same as final stop point
                         target_velocity = 0
                     else:
+                        #calc distance between this wp_idx and the next waypoint index
                         wp_to_wp_dist = self.distance(self.base_waypoints, wp_idx, wp_idx + 1)
-                        wp_to_wp_vel = (self.current_velocity ** 2) - (wp_to_wp_dist * 2 * decelaration_rate)
 
+                        #calc velocity between this wp_idx and the next waypoint index
+                        wp_to_wp_vel = (self.mph_to_mps(self.current_velocity) ** 2) - (wp_to_wp_dist * 2 * decel_rate)
+
+                        # reduce to zero for low threshold
                         if wp_to_wp_vel < 0.1:
                             wp_to_wp_vel = 0.0
-                        
+                                         
                         target_velocity = math.sqrt(wp_to_wp_vel)
                         target_velocity = self.mph_to_mps(target_velocity)
 
-                else: 
-                    # velocity is not needed for waypoints after traffic light waypoint
-                    target_velocity = 0
-
+            # apply velocity to this current processing waypoint
             self.set_waypoint_velocity(self.base_waypoints,wp_idx,target_velocity)
-
+            
+            # add this current processing waypoint to final set of waypoints
             msg.waypoints.append(self.base_waypoints[wp_idx])
 
-
+        #publish the message
         self.final_waypoints_pub.publish(msg)
-        #pass
+
+    def dist_to_tl(self, tl_index, next_index ):
+        if tl_index == -1 or next_index == -1:
+            return -1
+        diff = tl_index - next_index
+        if diff < 0:
+            diff += self.base_waypoints_count
+        return diff
 
     def next_waypoint_index(self):
         next_wp_index = 0
@@ -174,9 +194,8 @@ class WaypointUpdater(object):
         quaternion = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
         euler =  tf.transformations.euler_from_quaternion(quaternion)
         return euler[2]
-    
-    
 
+    
     def pose_cb(self, msg):
         # TODO: Implement
         self.current_pose = msg.pose
@@ -190,8 +209,10 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
+        #if self.tf_index != msg.data:
         self.tf_index = msg.data
-        rospy.logwarn("traffic_cb | tf_index = %s", self.tf_index)
+            #rospy.logwarn("traffic_cb | tf_index = %s", self.tf_index)
+
         #pass
 
     def obstacle_cb(self, msg):
@@ -221,7 +242,6 @@ class WaypointUpdater(object):
     def mph_to_mps(self, miles_per_hour):
         meter_per_second = 0.44704
         return miles_per_hour * meter_per_second
-
 
 if __name__ == '__main__':
     try:
