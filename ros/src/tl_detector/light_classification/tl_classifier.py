@@ -1,5 +1,7 @@
 from styx_msgs.msg import TrafficLight
 import tensorflow as tf
+import cv2
+import numpy as np
 
 class TLClassifier(object):
     def __init__(self):
@@ -19,17 +21,17 @@ class TLClassifier(object):
         #TODO implement light color prediction
         
         #Format the image for the Mul:0 Tensor
-        image2 = cv2.resize(img2,dsize=(299,299), interpolation = cv2.INTER_CUBIC)
+        image2 = cv2.resize(image, dsize=(299,299), interpolation = cv2.INTER_CUBIC)
         #Numpy array
         np_image_data = np.asarray(image2)
         image_data = np.expand_dims(np_image_data,axis=0)
     
 
         # Loads label file, strips off carriage return
-        label_lines = [line.rstrip() for line in tf.gfile.GFile("tl_labels.txt")]
+        label_lines = [line.rstrip() for line in tf.gfile.GFile("light_classification/tl_labels.txt")]
 
         # Load model (Retrained Google Inception Model)
-        with tf.gfile.FastGFile("tl_graph.pb", 'rb') as f:
+        with tf.gfile.FastGFile("light_classification/tl_graph.pb", 'rb') as f:
             graph_def = tf.GraphDef()
             graph_def.ParseFromString(f.read())
             _ = tf.import_graph_def(graph_def, name='')
