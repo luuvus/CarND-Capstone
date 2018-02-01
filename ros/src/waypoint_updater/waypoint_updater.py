@@ -25,7 +25,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
-TRAFFIC_LIGHT_STOP_WPS = 5 # Number of waypoints from traffic light to stop point
+TRAFFIC_LIGHT_STOP_WPS = 20 # Number of waypoints from traffic light to stop point
 
 
 class WaypointUpdater(object):
@@ -105,7 +105,7 @@ class WaypointUpdater(object):
         for wp_idx in range(next_wp_idx, end_wp_idx):
             
             # set to velocity to default speed limit
-            target_velocity = self.mph_to_mps(self.speed_limit)
+            target_velocity = self.mph_to_mps(self.speed_limit)*.6
             
             # adjust velocity for stop light
             if self.tf_index >= 0:
