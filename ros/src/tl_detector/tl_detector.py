@@ -38,8 +38,7 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size = 1)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size = 1)
+        
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -55,6 +54,12 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
         self.update_lights = True
+
+        self.run_environment = rospy.get_param("~run_environment") # expect value: "site" or "sim"
+
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size = 1)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size = 1)
+        #sub6 = rospy.Subscriber('/image_raw', Image, self.image_cb, queue_size = 1)
 
         rospy.spin()
 
@@ -103,6 +108,7 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -200,7 +206,7 @@ class TLDetector(object):
 
         if(not self.has_image):
             self.prev_light_loc = None
-            return False
+            return TrafficLight.UNKNOWN
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
@@ -243,7 +249,7 @@ class TLDetector(object):
                             break
             if next_light_wp > -1:
                 d = self.distance(self.waypoints, car_position_wp, next_light_wp)
-
+                
                 if d <= 100:
                     light = next_light
                     light_wp = next_light_wp
@@ -254,6 +260,11 @@ class TLDetector(object):
             state = self.get_light_state(light)
         else:
             state = TrafficLight.UNKNOWN
+
+            # add the following if block 
+            # so the traffic light classifer can be called when testing on real camera images from Udacity ROSBAG file
+            if self.run_environment == "site":   
+                state = self.get_light_state(light)
 
         return light_wp, state
 
