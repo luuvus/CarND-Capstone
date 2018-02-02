@@ -43,7 +43,7 @@ class Controller(object):
             
         # compute the steering angle
         steer_angle = self.lateral.get_steering(linspd_tar, rotspd_tar, linspd_current)
-        comp_active = True
+        comp_active = False
         if comp_active:
 		    T = dt
 		    tau1 = 1
