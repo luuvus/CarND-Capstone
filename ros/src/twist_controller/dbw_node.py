@@ -76,13 +76,13 @@ class DBWNode(object):
 
         # TODO: Subscribe to all the topics you need to
         # current spd
-        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb) 
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb, queue_size=1) 
         # target linear and angular spd 
-        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb) 
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb, queue_size=1) 
         # control mode
-        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb) 
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb, queue_size=1) 
         #debugging topic for target velocities
-        rospy.Subscriber('debugging_ref_vel', Float64, self.dbg_ref_vel_cb)
+        rospy.Subscriber('debugging_ref_vel', Float64, self.dbg_ref_vel_cb, queue_size=1)
 
         self.loop()
     # read the current velocity

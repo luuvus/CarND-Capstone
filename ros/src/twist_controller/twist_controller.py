@@ -10,7 +10,7 @@ class Controller(object):
     def __init__(self, *args, **kwargs):
         # TODO: Implement
 		# linear velocity controller
-        self.longitudinal = PID(kp=0.4, ki=0.001, kd=0.1, mn=kwargs['decel_limit'], mx=kwargs['accel_limit'])
+        self.longitudinal = PID(kp=0.4, ki=0.01, kd=0.1, mn=kwargs['decel_limit'], mx=kwargs['accel_limit'])
 		# angular velocity controller
         self.lateral = YawController(wheel_base=kwargs['wheel_base'],
                                      steer_ratio=kwargs['steer_ratio'],
@@ -43,12 +43,12 @@ class Controller(object):
             
         # compute the steering angle
         steer_angle = self.lateral.get_steering(linspd_tar, rotspd_tar, linspd_current)
-        comp_active = True
+        comp_active = False
         if comp_active:
 		    T = dt
-		    tau1 = 5
-		    tau2 = 50
-		    k = 0.1
+		    tau1 = 1
+		    tau2 = 10
+		    k = 0.015
 		    c1 = -(T*tau2-1)
 		    c2 = k*tau2/tau1
 		    c3 = c2*(T*tau1-1)
